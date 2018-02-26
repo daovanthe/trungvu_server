@@ -101,6 +101,20 @@ public class ServerAp {
 		}
 	}
 
+	private static void accept(SelectionKey key) throws IOException {
+		ServerSocketChannel ssc = (ServerSocketChannel) key.channel();
+		SocketChannel sc = ssc.accept();
+		if (sc == null) {
+			return;
+		}
+		sc.configureBlocking(false);
+		sc.register(selector, SelectionKey.OP_READ);
+		key.cancel();
+		pendingData.put(sc, new ConcurrentLinkedQueue<ByteBuffer>());
+		// add pending data entry ... Dont foget
+
+	}
+
 	private static StringBuffer stringInputBuffer;
 	private static StringBuffer stringOutputBuffer;
 
@@ -136,25 +150,25 @@ public class ServerAp {
 	}
 
 	private static Gson gson = new Gson();
-
+	static ByteBuffer byteBufer = ByteBuffer.allocate(1024);
 	private static void read(SelectionKey key) throws IOException {
-		Log.Logger.d("read", "readed");
+//		Log.Logger.d("read", "readed");
 		SocketChannel socket = (SocketChannel) key.channel();
-		ByteBuffer buf = ByteBuffer.allocate(1024);
-		int read = socket.read(buf);
+		
+		int read = socket.read(byteBufer);
 		if (read == -1) {
 			pendingData.remove(socket);
 			return;
 		}
-		buf.rewind();
-		buf.flip();
+		byteBufer.rewind();
+		byteBufer.flip();
 		StringBuffer lStringBuffer = new StringBuffer();
-		for (int i = 0; i < buf.limit(); i++) {
-
+		for (int i = 0; i < byteBufer.limit(); i++) {
 			// buf.put(i, (byte) Util.transmogrify(buf.get(i)));
-			buf.put(i, (byte) buf.get(i));
-			lStringBuffer.append((char) (byte) buf.get(i));
+			byteBufer.put(i, (byte) byteBufer.get(i));
+			lStringBuffer.append((char) (byte) byteBufer.get(i));
 		}
+		System.out.println(lStringBuffer.toString());
 		// String convert
 		Msg message = gson.fromJson(lStringBuffer.toString(), Msg.class);
 		if (message != null) {
@@ -179,12 +193,12 @@ public class ServerAp {
 				// Log.Logger.d("readServer", "checking of user " + toUserId);
 			}
 		}
-		pendingData.get(socket).add(buf);
-		buf.clear();
+		pendingData.get(socket).add(byteBufer);
+		byteBufer.clear();
 	}
 
 	private static void writeDataToChannel(SocketChannel receiveChannel, Msg wholeMessage) throws IOException {
-
+		Log.Logger.d("writeDataToChannel", "write");
 		ByteBuffer buf = ByteBuffer.allocate(4096);
 
 		stringInputBuffer.setLength(0);
@@ -208,16 +222,4 @@ public class ServerAp {
 
 	}
 
-	private static void accept(SelectionKey key) throws IOException {
-		ServerSocketChannel ssc = (ServerSocketChannel) key.channel();
-		SocketChannel sc = ssc.accept();
-		if (sc == null) {
-			return;
-		}
-		sc.configureBlocking(false);
-		sc.register(key.selector(), SelectionKey.OP_READ);
-		pendingData.put(sc, new ConcurrentLinkedQueue<ByteBuffer>());
-		// add pending data entry ... Dont foget
-
-	}
 }
